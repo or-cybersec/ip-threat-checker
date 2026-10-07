@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-bg: #090c10;
+  --color-surface: #11181f;
+  --color-raised: #1a232d;
+  --color-line: #2a3848;
+  --color-fg: #e7eef6;
+  --color-muted: #93a3b5;
+  --color-faint: #7f90a3;
+  --color-accent: #e2b340;
+  --color-accent-fg: #1c1504;
+  --color-critical: #f07171;
+  --color-critical-dim: #3a1d22;
+  --color-warn: #f09a4a;
+  --color-warn-dim: #3a2616;
+  --color-ok: #3dbe86;
+  --color-ok-dim: #143028;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    overflow-x: clip;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+}
+
+.score-ring {
+  background: conic-gradient(var(--ring) calc(var(--p) * 1%), var(--track) 0);
+}
+
+.ring-critical { --ring: var(--color-critical); --track: #6a3036; }
+.ring-warn { --ring: var(--color-warn); --track: #6a4524; }
+.ring-ok { --ring: var(--color-ok); --track: #1f6b48; }
+.ring-muted { --ring: var(--color-faint); --track: #3a4c60; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

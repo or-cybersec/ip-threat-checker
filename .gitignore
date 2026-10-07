@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.output/
+.nitro/
+.vercel/
+.grok/
+public/__grok/
+screenshots/
+artifacts/
+.env
+.env.*
+!.env.example
+*.zip
+*.log
+.DS_Store
+data/
+*.pglite/

@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      GREYNOISE_API_KEY: ${GREYNOISE_API_KEY:-}
+      SHODAN_API_KEY: ${SHODAN_API_KEY:-}
+      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      MDTI_TENANT_ID: ${MDTI_TENANT_ID:-}
+      MDTI_CLIENT_ID: ${MDTI_CLIENT_ID:-}
+      MDTI_CLIENT_SECRET: ${MDTI_CLIENT_SECRET:-}
+    restart: unless-stopped
+  nginx:
+    profiles: ["proxy"]
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
