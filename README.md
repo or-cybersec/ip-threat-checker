@@ -84,7 +84,7 @@ Either way, you can look up an address with no key. VirusTotal, AbuseIPDB, OTX, 
 
 ## Use it
 
-Paste a public IPv4 or IPv6 address, or one line from a log, and press **Analyze**. A port after the address, as in `8.8.8.8:53`, is dropped. A private address such as `192.168.1.1` is refused.
+Paste one public IPv4 or IPv6 address and press **Analyze**. A port written right after it, as in `8.8.8.8:53`, is dropped. A private address such as `192.168.1.1` is refused. If the line has spaces and one public address in it, that address is used. A stuck-together piece such as `src=45.33.32.156:22` is not. Copy the address out first.
 
 The example buttons only fill the box. They do not start a lookup.
 
