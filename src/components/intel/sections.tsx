@@ -1,9 +1,11 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { JsonView } from "@/components/intel/json-view";
 import { InfoTip } from "@/components/intel/info-tip";
+import { useSettings } from "@/components/intel/settings";
+import { statusTerm, Term } from "@/components/intel/term";
 import type {
   Asn,
   Finding,
@@ -113,6 +115,7 @@ export function Section({
   title,
   source,
   info,
+  detail = false,
   defaultOpen = true,
   children,
 }: {
@@ -120,24 +123,29 @@ export function Section({
   title: string;
   source?: SourceMeta;
   info?: string;
+  detail?: boolean;
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const revealed = useRef(defaultOpen);
+  const { settings } = useSettings();
+  const startOpen = detail ? settings.detailsOpen : defaultOpen;
+  const [open, setOpen] = useState(startOpen);
   useEffect(() => {
-    if (defaultOpen && !revealed.current) {
-      revealed.current = true;
-      setOpen(true);
-    }
-  }, [defaultOpen]);
+    setOpen(startOpen);
+  }, [startOpen]);
   return (
     <Collapsible.Root id={id} open={open} onOpenChange={setOpen} className="scroll-mt-24 rounded-lg border border-line bg-surface">
       <div className="flex items-stretch">
         <Collapsible.Trigger className="flex min-h-11 min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left">
-          <span className="flex-1 text-sm font-semibold">{title}</span>
+          <span className="flex-1 text-sm font-semibold">
+            <Term name={title} focusable={false}>{title}</Term>
+          </span>
           {source ? (
-            <span className={`font-mono text-xs ${statusClass(source)}`}>{sourceWord(source)}</span>
+            <span className={`font-mono text-xs ${statusClass(source)}`}>
+              <Term name={statusTerm(source.status, source.cached, false)} focusable={false}>
+                {sourceWord(source)}
+              </Term>
+            </span>
           ) : null}
           <ChevronDown className={`size-4 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
         </Collapsible.Trigger>
@@ -163,7 +171,9 @@ function Meta({ label, value }: { label: string; value?: string | number | boole
         : String(value);
   return (
     <div className="min-w-0">
-      <p className="text-xs text-faint">{label}</p>
+      <p className="text-xs text-faint">
+        <Term name={label}>{label}</Term>
+      </p>
       <p className="font-mono text-sm break-words text-fg">{text}</p>
     </div>
   );
@@ -198,6 +208,9 @@ export function Overview({
   verdict,
   score,
   phase,
+  sources,
+  note,
+  onCopyNote,
 }: {
   ip: string;
   version?: 4 | 6;
@@ -210,6 +223,9 @@ export function Overview({
   verdict?: Verdict;
   score?: number;
   phase: Phase;
+  sources: SourceMeta[];
+  note?: string;
+  onCopyNote?: () => void;
 }) {
   const country = regionName(geo.countryCode) ?? regionName(geo.country) ?? geo.country;
   const place = [geo.city, geo.region, country].filter(Boolean).join(", ");
@@ -230,37 +246,61 @@ export function Overview({
   return (
     <section id="overview" className="scroll-mt-24 rounded-lg border border-line bg-surface p-4">
       <div className="flex flex-wrap items-start gap-5">
-        <div className={`grid size-24 shrink-0 place-items-center rounded-full score-ring ${ring}`} style={{ ["--p" as string]: String(score ?? 0) }}>
-          <div className="grid size-20 place-items-center rounded-full bg-surface">
-            {phase === "running" && score === undefined ? (
-              <span className="inline-block size-5 animate-spin rounded-full border-2 border-line border-t-accent" />
-            ) : (
-              <span className="font-mono text-2xl font-medium tabular-nums">{score ?? "–"}</span>
-            )}
-          </div>
-        </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-pretty text-fg">{coverageLine(sources, verdict, phase)}</p>
+          {note?.trim() ? (
+            <div className="mt-3 rounded-md border border-line bg-bg px-3 py-3">
+              <p className="text-sm text-pretty text-fg">{note.trim()}</p>
+              {onCopyNote ? (
+                <button type="button" onClick={onCopyNote} className="mt-3 h-11 rounded-md border border-line bg-surface px-3 text-sm">
+                  Copy for ticket
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="mt-3 font-mono text-xl break-all text-fg sm:text-2xl">{ip || "No address yet"}</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             <VerdictPill verdict={verdict} phase={phase} />
-            <InfoTip label="How to read the score" text={scoreTip(verdict, phase)} />
-            {version ? <span className="font-mono text-xs text-faint">IPv{version}</span> : null}
+            {version ? (
+              <span className="font-mono text-xs text-faint">
+                <Term name={`IPv${version}`}>IPv{version}</Term>
+              </span>
+            ) : null}
           </div>
-          <p className="mt-2 text-sm text-pretty text-fg">{plainVerdict(verdict, phase)}</p>
-          <p className="mt-2 font-mono text-xl break-all text-fg sm:text-2xl">{ip || "No address yet"}</p>
           <SourceLinks ip={ip} />
           <p className="mt-1 text-sm text-pretty text-muted">
             {place || (phase === "running" ? "Waiting for geolocation…" : "Public IP, reputation, and exposure in one pass.")}
-            {asn.asn ? ` · ${asn.asn}${asn.name ? ` ${asn.name}` : ""}` : ""}
+            {asn.asn ? (
+              <>
+                {" · "}
+                <Term name="ASN">{asn.asn}{asn.name ? ` ${asn.name}` : ""}</Term>
+              </>
+            ) : null}
           </p>
           {tags.length ? (
             <ul className="mt-3 flex flex-wrap gap-1.5">
               {tags.map((tag) => (
                 <li key={tag} className="rounded-sm bg-raised px-2 py-0.5 font-mono text-xs text-muted">
-                  {tag}
+                  <Term name="Tag" focusable={false}>{tag}</Term>
                 </li>
               ))}
             </ul>
           ) : null}
+        </div>
+        <div className="grid w-24 shrink-0 justify-items-center gap-2">
+          <div className={`grid size-24 place-items-center rounded-full score-ring ${ring}`} style={{ ["--p" as string]: String(score ?? 0) }}>
+            <div className="grid size-20 place-items-center rounded-full bg-surface">
+              {phase === "running" && score === undefined ? (
+                <span className="inline-block size-5 animate-spin rounded-full border-2 border-line border-t-accent" />
+              ) : (
+                <span className="font-mono text-2xl font-medium tabular-nums">{score ?? "–"}</span>
+              )}
+            </div>
+          </div>
+          <p className="text-center text-xs text-pretty text-faint">
+            <Term name="This page's score">This page's score</Term>
+          </p>
+          <InfoTip label="How to read the score" text={scoreTip(verdict, phase)} />
         </div>
       </div>
       {facts.length ? (
@@ -270,7 +310,11 @@ export function Overview({
           ))}
         </dl>
       ) : null}
-      {cgnat ? <p className="mt-3 text-sm text-warn">Carrier-grade NAT. Any reputation is shared by many subscribers.</p> : null}
+      {cgnat ? (
+        <p className="mt-3 text-sm text-warn">
+          <Term name="Carrier-grade NAT">Carrier-grade NAT</Term>. Any reputation is shared by many subscribers.
+        </p>
+      ) : null}
       {assetNote ? <p className="mt-3 text-sm text-fg">{assetNote}</p> : null}
       {findings.length ? (
         <ul className="mt-4 grid gap-2">
@@ -279,7 +323,9 @@ export function Overview({
               {finding.text}
               {finding.points ? (
                 <span className="ml-2 font-mono text-xs text-faint tabular-nums">
-                  {finding.points > 0 ? `+${finding.points}` : `−${Math.abs(finding.points)}`}
+                  <Term name="Points" focusable={false}>
+                    {finding.points > 0 ? `+${finding.points}` : `−${Math.abs(finding.points)}`}
+                  </Term>
                 </span>
               ) : null}
             </li>
@@ -311,7 +357,7 @@ function SourceLinks({ ip }: { ip: string }) {
             rel="noopener noreferrer"
             className="inline-flex h-8 items-center rounded-md border border-line px-2 text-xs text-muted hover:text-fg"
           >
-            {label}
+            <Term name={label} focusable={false}>{label}</Term>
           </a>
         </li>
       ))}
@@ -323,7 +369,9 @@ function VerdictPill({ verdict, phase }: { verdict?: Verdict; phase: Phase }) {
   if (!verdict) {
     return (
       <span className="rounded-sm bg-raised px-2 py-1 font-mono text-xs tracking-wide text-muted">
-        {phase === "running" ? "SCORING" : phase === "error" ? "FAILED" : "STANDBY"}
+        <Term name={phase === "running" ? "SCORING" : phase === "error" ? "FAILED" : "STANDBY"}>
+          {phase === "running" ? "SCORING" : phase === "error" ? "FAILED" : "STANDBY"}
+        </Term>
       </span>
     );
   }
@@ -335,7 +383,7 @@ function VerdictPill({ verdict, phase }: { verdict?: Verdict; phase: Phase }) {
         : verdict === "benign"
           ? "bg-ok-dim text-ok"
           : "bg-raised text-muted";
-  return <span className={`rounded-sm px-2 py-1 font-mono text-xs tracking-wide ${tone}`}>{verdict.toUpperCase()}</span>;
+  return <span className={`rounded-sm px-2 py-1 font-mono text-xs tracking-wide ${tone}`}><Term name={verdict.toUpperCase()}>{verdict.toUpperCase()}</Term></span>;
 }
 
 export function ReputationPanel({
@@ -356,7 +404,7 @@ export function ReputationPanel({
     : 0;
   const width = (n: number) => (total ? `${Math.max(0, (n / total) * 100)}%` : "0%");
   return (
-    <Section id="reputation" title="Reputation" defaultOpen={false}>
+    <Section id="reputation" title="Reputation" detail>
       <div className="grid gap-5">
         <FeedSlot phase={phase} source={source}>
           {reputation ? (
@@ -395,7 +443,10 @@ export function ReputationPanel({
           )}
         </FeedSlot>
         <div className="border-t border-line pt-4">
-          <p className="mb-2 text-xs text-faint">Spamhaus ZEN {blockSource ? `· ${sourceWord(blockSource)}` : ""}</p>
+          <p className="mb-2 text-xs text-faint">
+            <Term name="Spamhaus ZEN">Spamhaus ZEN</Term>
+            {blockSource ? ` · ${sourceWord(blockSource)}` : ""}
+          </p>
           {spamhaus ? (
             <p className={`text-sm ${spamhaus.listed ? "text-critical" : "text-fg"}`}>
               {spamhaus.listed
@@ -431,10 +482,10 @@ export function ThreatPanel({
   mdti: { classification?: string; score: number | null; rules: { name: string; description?: string; severity?: string; url?: string }[]; firstSeen?: string; lastSeen?: string } | null;
 }) {
   return (
-    <Section id="threats" title="Threat intelligence" defaultOpen={false}>
+    <Section id="threats" title="Threat intelligence" detail>
       <div className="grid gap-5">
         <div>
-          <h3 className="mb-2 text-sm font-medium">AbuseIPDB</h3>
+          <h3 className="mb-2 text-sm font-medium"><Term name="AbuseIPDB">AbuseIPDB</Term></h3>
           <FeedSlot phase={phase} source={abuseSource}>
             {abuse ? (
               <div className="grid gap-3">
@@ -451,7 +502,7 @@ export function ThreatPanel({
                   <ul className="flex flex-wrap gap-1.5">
                     {abuse.categories.map((category) => (
                       <li key={category.name} className="rounded-sm bg-warn-dim px-2 py-0.5 font-mono text-xs text-warn">
-                        {category.name} {category.count}
+                        <Term name="Report category" focusable={false}>{category.name} {category.count}</Term>
                       </li>
                     ))}
                   </ul>
@@ -474,7 +525,7 @@ export function ThreatPanel({
           </FeedSlot>
         </div>
         <div className="border-t border-line pt-4">
-          <h3 className="mb-2 text-sm font-medium">GreyNoise</h3>
+          <h3 className="mb-2 text-sm font-medium"><Term name="GreyNoise">GreyNoise</Term></h3>
           <FeedSlot phase={phase} source={noiseSource}>
             {greynoise ? (
               <div className="grid gap-3">
@@ -491,7 +542,7 @@ export function ThreatPanel({
                   <ul className="flex flex-wrap gap-1.5">
                     {greynoise.tags.map((tag) => (
                       <li key={tag} className="rounded-sm bg-raised px-2 py-0.5 font-mono text-xs text-muted">
-                        {tag}
+                        <Term name="Tag" focusable={false}>{tag}</Term>
                       </li>
                     ))}
                   </ul>
@@ -508,7 +559,9 @@ export function ThreatPanel({
           </FeedSlot>
         </div>
         <div className="border-t border-line pt-4">
-          <h3 className="mb-2 text-sm font-medium">Microsoft Defender Threat Intelligence</h3>
+          <h3 className="mb-2 text-sm font-medium">
+            <Term name="Microsoft Defender Threat Intelligence">Microsoft Defender Threat Intelligence</Term>
+          </h3>
           <FeedSlot phase={phase} source={mdtiSource}>
             {mdti ? (
               <div className="grid gap-3">
@@ -559,7 +612,7 @@ export function ShodanPanel({
   shodan: Shodan | null;
 }) {
   return (
-    <Section id="shodan" title="Shodan" source={source} defaultOpen={false}>
+    <Section id="shodan" title="Shodan" source={source} detail>
       <FeedSlot phase={phase} source={source} empty="No open services in InternetDB.">
         {shodan ? (
           <div className="grid gap-4">
@@ -579,7 +632,7 @@ export function ShodanPanel({
                     key={port}
                     className={`rounded-sm px-2 py-0.5 font-mono text-xs ${RISKY.has(port) ? "bg-warn-dim text-warn" : "bg-raised text-muted"}`}
                   >
-                    {port}
+                    <Term name={RISKY.has(port) ? "Risky port" : "Port"} focusable={false}>{port}</Term>
                   </li>
                 ))}
               </ul>
@@ -590,7 +643,7 @@ export function ShodanPanel({
               <ul className="flex flex-wrap gap-1.5">
                 {shodan.vulns.map((cve) => (
                   <li key={cve} className="rounded-sm bg-critical-dim px-2 py-0.5 font-mono text-xs text-critical">
-                    {cve}
+                    <Term name="CVE" focusable={false}>{cve}</Term>
                   </li>
                 ))}
               </ul>
@@ -598,7 +651,7 @@ export function ShodanPanel({
             {shodan.cpes.length ? (
               <ul className="grid gap-1 font-mono text-xs text-muted">
                 {shodan.cpes.map((cpe) => (
-                  <li key={cpe} className="break-all">{cpe}</li>
+                  <li key={cpe} className="break-all"><Term name="CPE" focusable={false}>{cpe}</Term></li>
                 ))}
               </ul>
             ) : null}
@@ -615,7 +668,7 @@ export function ShodanPanel({
                         {service.banner}
                       </pre>
                     ) : (
-                      <p className="mt-2 text-sm text-faint">No banner captured.</p>
+                      <p className="mt-2 text-sm text-faint">No banner was captured.</p>
                     )}
                   </details>
                 ))}
@@ -644,7 +697,7 @@ export function DnsPanel({
   timeline: TimelineEvent[];
 }) {
   return (
-    <Section id="dns" title="DNS and RDAP" source={source} defaultOpen={false}>
+    <Section id="dns" title="DNS and RDAP" source={source} detail>
       <FeedSlot phase={phase} source={source}>
         {whois ? (
           <div className="grid gap-4">
@@ -685,7 +738,7 @@ export function DnsPanel({
         )}
       </FeedSlot>
       <div className="mt-4 border-t border-line pt-4">
-        <h3 className="mb-2 text-sm font-medium">Hostnames</h3>
+        <h3 className="mb-2 text-sm font-medium"><Term name="Hostnames">Hostnames</Term></h3>
         {passiveDns.length ? (
           <ul className="grid gap-1">
             {passiveDns.map((row) => (
@@ -697,13 +750,13 @@ export function DnsPanel({
           </ul>
         ) : (
           <p className="text-sm text-muted">
-            {phase === "running" ? "Hostnames arrive as ipinfo, Shodan, VirusTotal, and OTX return." : "No hostnames collected."}
+            {phase === "running" ? "Hostnames appear when ipinfo, Shodan, VirusTotal, and OTX return." : "No hostnames were collected."}
           </p>
         )}
       </div>
       {timeline.length ? (
         <div className="mt-4 border-t border-line pt-4">
-          <h3 className="mb-2 text-sm font-medium">Timeline</h3>
+          <h3 className="mb-2 text-sm font-medium"><Term name="Timeline">Timeline</Term></h3>
           <ol className="grid gap-2">
             {timeline.map((event) => (
               <li key={`${event.source}-${event.label}-${event.at}`} className="flex flex-wrap gap-2 text-sm">
@@ -735,7 +788,7 @@ export function IocPanel({
   } | null;
 }) {
   return (
-    <Section id="ioc" title="OTX" source={source} defaultOpen={false}>
+    <Section id="ioc" title="OTX" source={source} detail>
       <FeedSlot phase={phase} source={source}>
         {otx ? (
           <div className="grid gap-4">
@@ -854,23 +907,39 @@ export function SummaryPanel({
 
 export function RawPanel({ value }: { value: unknown }) {
   return (
-    <Section id="raw" title="Raw JSON" defaultOpen={false}>
+    <Section id="raw" title="Raw JSON" detail>
       {value ? <JsonView value={value} /> : <p className="text-sm text-muted">The unified record appears here after a lookup.</p>}
     </Section>
   );
 }
 
-function plainVerdict(verdict: Verdict | undefined, phase: Phase): string {
-  if (verdict === "unknown") return "We don't have enough answers to call this safe.";
-  if (verdict === "suspicious") return "Look at this before you allow it or block it.";
-  if (verdict === "critical") return "This looks serious. Pass it on.";
-  if (verdict === "benign") return "One source saw nothing bad. Silence from the others is not a promise.";
-  if (phase === "running") return "Still asking the sources.";
-  return "Paste a public IP to start.";
+function coverageLine(sources: SourceMeta[], verdict: Verdict | undefined, phase: Phase): string {
+  const answered = sources.filter((source) => source.status === "ok" || source.status === "empty");
+  const silent = sources.filter((source) => source.status !== "ok" && source.status !== "empty");
+  if (phase === "running" && answered.length === 0) return "Still asking the sources. Nothing has answered yet, and that is not a result.";
+  if (!sources.length) return phase === "running" ? "Still asking the sources." : "No source answered. That is not a clean result.";
+  const heard = silent.length === 0
+    ? `All ${answered.length} sources answered.`
+    : `${answered.length} answered. ${joinNames(silent.map((source) => source.label))} did not.`;
+  if (phase === "running") return `${heard} Still waiting on the rest. Silence is not a clean result.`;
+  const caveat = verdict === "critical"
+    ? "A serious sign is a reason to escalate, not the name of an attacker."
+    : verdict === "suspicious"
+      ? "This is a reason to look, not a proof."
+      : verdict === "benign"
+        ? "A quiet answer is not a promise from the sources that stayed silent."
+        : "This is not enough to call the address safe.";
+  return `${heard} ${caveat}`;
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function scoreTip(verdict: Verdict | undefined, phase: Phase): string {
-  const scale = "The number only adds up what you see below. It is not a score from one company.";
+  const scale = "This page's score only adds up the lines below. It is not VirusTotal's number and not AbuseIPDB's confidence.";
   if (verdict === "unknown") return `We did not get enough to call this safe. Unknown is not the same as clean. ${scale}`;
   if (verdict === "benign") return `One source said it saw nothing bad. The others may not have answered. ${scale}`;
   if (verdict === "suspicious") return `Look at this before you allow it or block it. ${scale}`;

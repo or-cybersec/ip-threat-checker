@@ -89,6 +89,12 @@ export function extractAddress(raw: string): Extracted {
   if (!text) return { ok: false, message: "Enter an IPv4 or IPv6 address." };
   const direct = classifyAddress(text);
   if (direct.ok) return { ...direct, fromLine: false };
+  const unwrapped = unwrapDecorated(text);
+  if (unwrapped) {
+    const again = classifyAddress(unwrapped);
+    if (again.ok) return { ...again, fromLine: true };
+    return again;
+  }
   if (!/\s/.test(text)) return direct;
 
   const found = new Map<string, Extract<Extracted, { ok: true }>>();
@@ -115,6 +121,15 @@ export function extractAddress(raw: string): Extracted {
     return { ok: false, message: "That address is not publicly routable. These feeds only cover global unicast IPs." };
   }
   return { ok: false, message: "No public IP in that text." };
+}
+
+/** `8.8.8.8:53` and `[2001:db8::1]:443` are one address with a port, not invalid text. */
+function unwrapDecorated(text: string): string | null {
+  const bracket = text.match(/^\[([0-9a-fA-F:.]+)\](?::\d{1,5})?$/);
+  if (bracket) return bracket[1];
+  const v4port = text.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/);
+  if (v4port) return v4port[1];
+  return null;
 }
 
 function hopIp(value: string | undefined): string | null {

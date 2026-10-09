@@ -57,6 +57,52 @@
 .ring-ok { --ring: var(--color-ok); --track: #1f6b48; }
 .ring-muted { --ring: var(--color-faint); --track: #3a4c60; }
 
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-bg: #f4f7fa;
+  --color-surface: #ffffff;
+  --color-raised: #e6eef4;
+  --color-line: #c5d3df;
+  --color-fg: #14202b;
+  --color-muted: #3d5164;
+  --color-faint: #5c7184;
+  --color-accent: #8a6110;
+  --color-accent-fg: #fff8e8;
+  --color-critical: #9f1d1d;
+  --color-critical-dim: #f8d4d4;
+  --color-warn: #8a4b08;
+  --color-warn-dim: #f8e3cc;
+  --color-ok: #0b6b43;
+  --color-ok-dim: #d3f3e4;
+}
+
+html[data-theme="light"] .ring-critical { --track: #f0c8c8; }
+html[data-theme="light"] .ring-warn { --track: #f0d7b8; }
+html[data-theme="light"] .ring-ok { --track: #b7e6cf; }
+html[data-theme="light"] .ring-muted { --track: #d5e0e8; }
+
+.log-scroll {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-muted) var(--color-raised);
+}
+
+.log-scroll::-webkit-scrollbar {
+  width: 12px;
+}
+
+.log-scroll::-webkit-scrollbar-track {
+  background: var(--color-raised);
+  border-radius: 999px;
+}
+
+.log-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-muted);
+  border: 3px solid var(--color-raised);
+  border-radius: 999px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

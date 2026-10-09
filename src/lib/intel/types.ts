@@ -279,6 +279,7 @@ export type HistoryRow = {
   score: number;
   summary: string;
   createdAt: string;
+  marked: boolean;
 };
 
 export const FEEDS: { id: FeedId; label: string; keyed: boolean }[] = [

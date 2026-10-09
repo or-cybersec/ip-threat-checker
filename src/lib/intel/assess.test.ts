@@ -234,6 +234,13 @@ test("pulls the one public address out of a log line", () => {
   const bare = extractAddress("8.8.8.8");
   assert.equal(bare.ok && bare.fromLine, false);
   assert.equal(extractAddress("192.168.1.1").ok, false);
+  const port = extractAddress("8.8.8.8:53");
+  assert.equal(port.ok && port.ip, "8.8.8.8");
+  assert.equal(port.ok && port.fromLine, true);
+  const brackets = extractAddress("[2001:4860:4860::8888]:53");
+  assert.equal(brackets.ok && brackets.ip, "2001:4860:4860::8888");
+  assert.equal(extractAddress("192.168.1.1:53").ok, false);
+  assert.equal(extractAddress("example.com").ok, false);
 });
 
 test("an owned resolver is a do-not-block note, not a feed verdict", () => {

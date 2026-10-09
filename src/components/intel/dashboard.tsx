@@ -1,8 +1,13 @@
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, KeyRound, Radar, Search } from "lucide-react";
+import { BookOpen, ChevronDown, CircleHelp, GraduationCap, KeyRound, Radar, Search, Settings, Star } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
+import { AboutDialog } from "@/components/intel/about-dialog";
+import { GlossaryDialog } from "@/components/intel/glossary-dialog";
+import { StudyDialog } from "@/components/intel/study-dialog";
 import { InfoTip } from "@/components/intel/info-tip";
+import { SettingsDialog, SettingsProvider, useSettings } from "@/components/intel/settings";
+import { statusTerm, Term } from "@/components/intel/term";
 import { type EnvFlags, KeysDialog, readKeys, readWorkspaceOptIn } from "@/components/intel/keys-dialog";
 import {
   DnsPanel,
@@ -47,6 +52,14 @@ const dot: Record<Verdict, string> = {
 };
 
 export function Dashboard() {
+  return (
+    <SettingsProvider>
+      <DashboardView />
+    </SettingsProvider>
+  );
+}
+
+function DashboardView() {
   const [ip, setIp] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [fatal, setFatal] = useState<string | null>(null);
@@ -58,7 +71,12 @@ export function Dashboard() {
   const [historyNote, setHistoryNote] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
+  const [logQuery, setLogQuery] = useState("");
   const [keysOpen, setKeysOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
   const [envFlags, setEnvFlags] = useState<EnvFlags | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -135,6 +153,25 @@ export function Dashboard() {
     }
   }
 
+  async function toggleMark(row: HistoryRow) {
+    const marked = !row.marked;
+    setHistory((current) => current.map((item) => (item.ip === row.ip ? { ...item, marked } : item)));
+    try {
+      const response = await fetch(`/api/history?id=${row.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ marked }),
+      });
+      if (!response.ok) {
+        setHistory((current) => current.map((item) => (item.ip === row.ip ? { ...item, marked: row.marked } : item)));
+        setHistoryNote("Could not mark that lookup.");
+      }
+    } catch {
+      setHistory((current) => current.map((item) => (item.ip === row.ip ? { ...item, marked: row.marked } : item)));
+      setHistoryNote("Could not mark that lookup.");
+    }
+  }
+
   async function deleteHistoryRow(id: number) {
     try {
       const response = await fetch(`/api/history?id=${id}`, { method: "DELETE" });
@@ -178,7 +215,7 @@ export function Dashboard() {
 
   async function run(nextIp: string) {
     const trimmed = nextIp.trim();
-    setIp(trimmed);
+    remember(trimmed);
     const id = requestId.current + 1;
     requestId.current = id;
     const keep = dossier;
@@ -224,7 +261,7 @@ export function Dashboard() {
             const event = JSON.parse(line) as StreamEvent;
             if (event.type === "meta") {
               setMeta({ ip: event.ip, version: event.version, cgnat: event.cgnat });
-              setIp(event.ip);
+              remember(event.ip);
               if (event.fromLine) setNotice(`Using ${event.ip} from the pasted line.`);
             }
             if (event.type === "fragment") {
@@ -249,6 +286,7 @@ export function Dashboard() {
                   score: event.dossier.score,
                   summary: event.dossier.summary,
                   createdAt: event.dossier.queriedAt,
+                  marked: current.some((item) => item.ip === event.dossier.ip && item.marked),
                 };
                 return [row, ...current.filter((item) => item.id !== row.id)].slice(0, 30);
               });
@@ -284,7 +322,7 @@ export function Dashboard() {
       setPartial({});
       setSources(saved.sources ?? []);
       setMeta({ ip: saved.ip, version: saved.version, cgnat: saved.cgnat });
-      setIp(saved.ip);
+      remember(saved.ip);
       setPhase("done");
     } catch {
       setPhase("error");
@@ -312,7 +350,25 @@ export function Dashboard() {
     owned && (dossier?.verdict === "unknown" || dossier?.verdict === "benign")
       ? ["No further action unless a feed turns hostile."]
       : (dossier?.actions ?? []);
+  const { settings, ready, update } = useSettings();
   const raw = useMemo(() => dossier ?? (phase === "running" ? { ip: viewIp, ...partial, sources: activeSources } : null), [dossier, phase, viewIp, partial, activeSources]);
+  const restored = useRef(false);
+  const [introOpen, setIntroOpen] = useState(true);
+
+  function remember(value: string) {
+    setIp(value);
+    if (settings.rememberAddress) update({ lastAddress: value });
+  }
+
+  useEffect(() => {
+    if (!ready || restored.current) return;
+    restored.current = true;
+    if (settings.rememberAddress && settings.lastAddress) setIp(settings.lastAddress);
+  }, [ready]);
+
+  useEffect(() => {
+    if (ready) setIntroOpen(settings.introOpen);
+  }, [ready, settings.introOpen]);
 
   return (
     <div className="min-h-screen bg-bg text-fg">
@@ -326,20 +382,58 @@ export function Dashboard() {
               <h1 className="text-base font-semibold">IP Threat Checker</h1>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setKeysOpen(true)}
-            className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
-          >
-            <KeyRound className="size-4 text-accent" aria-hidden="true" />
-            Credentials
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setAboutOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
+            >
+              <CircleHelp className="size-4 text-muted" aria-hidden="true" />
+              About
+            </button>
+            <button
+              type="button"
+              onClick={() => setGlossaryOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
+            >
+              <BookOpen className="size-4 text-muted" aria-hidden="true" />
+              Glossary
+            </button>
+            <button
+              type="button"
+              onClick={() => setStudyOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
+            >
+              <GraduationCap className="size-4 text-muted" aria-hidden="true" />
+              Study more
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
+            >
+              <Settings className="size-4 text-muted" aria-hidden="true" />
+              Settings
+            </button>
+            <button
+              type="button"
+              onClick={() => setKeysOpen(true)}
+              className="inline-flex h-11 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm"
+            >
+              <KeyRound className="size-4 text-accent" aria-hidden="true" />
+              <Term name="Credentials">Credentials</Term>
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:px-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
         <main className="min-w-0 lg:col-start-2 lg:row-start-1">
-          <details className="group mb-4 rounded-lg border border-line bg-surface">
+          <details
+            className="group mb-4 rounded-lg border border-line bg-surface"
+            open={introOpen}
+            onToggle={(event) => setIntroOpen(event.currentTarget.open)}
+          >
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-semibold [&::-webkit-details-marker]:hidden">
               <span className="flex-1">New here?</span>
               <ChevronDown className="size-4 text-muted group-open:rotate-180" aria-hidden="true" />
@@ -360,13 +454,13 @@ export function Dashboard() {
             }}
           >
             <label className="grid gap-1">
-              <span className="text-sm font-medium">IP address</span>
+              <span className="text-sm font-medium"><Term name="IP address">IP address</Term></span>
               <span className="flex flex-col gap-2 sm:flex-row">
                 <span className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-faint" aria-hidden="true" />
                   <input
                     value={ip}
-                    onChange={(event) => setIp(event.target.value)}
+                    onChange={(event) => remember(event.target.value)}
                     placeholder="8.8.8.8 or a log line"
                     spellCheck={false}
                     autoCapitalize="off"
@@ -375,31 +469,44 @@ export function Dashboard() {
                     className="h-11 w-full rounded-md border border-line bg-surface pr-3 pl-10 font-mono text-sm text-fg outline-none placeholder:text-faint focus-visible:border-accent"
                   />
                 </span>
-                <button
-                  type="submit"
-                  disabled={phase === "running" || !ip.trim()}
-                  className="h-11 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg disabled:bg-raised disabled:text-muted"
-                >
-                  {phase === "running" ? "Querying feeds…" : "Analyze"}
-                </button>
+                <span className="flex gap-2">
+                  {phase !== "idle" || dossier ? (
+                    <button
+                      type="button"
+                      onClick={clearResult}
+                      className="h-11 rounded-md border border-line px-4 text-sm text-muted"
+                    >
+                      Clear result
+                    </button>
+                  ) : null}
+                  <button
+                    type="submit"
+                    disabled={phase === "running" || !ip.trim()}
+                    className="h-11 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg disabled:bg-raised disabled:text-muted"
+                  >
+                    {phase === "running" ? "Querying feeds…" : "Analyze"}
+                  </button>
+                </span>
               </span>
             </label>
+            {settings.examples ? (
             <div className="flex flex-wrap gap-2">
               {SAMPLES.map((sample) => (
                 <button
                   key={sample.ip}
                   type="button"
-                  onClick={() => setIp(sample.ip)}
+                  onClick={() => remember(sample.ip)}
                   disabled={phase === "running"}
                   className="h-11 rounded-md border border-line bg-surface px-3 text-left text-sm disabled:opacity-50"
                 >
                   <span className="font-mono">{sample.ip}</span>
-                  <span className="text-faint"> · {sample.label}</span>
+                  <span className="text-faint"> · <Term name={sample.label} focusable={false}>{sample.label}</Term></span>
                 </button>
               ))}
             </div>
+            ) : null}
             <p className="text-sm text-muted">
-              VirusTotal, AbuseIPDB, OTX, and Defender need a key. The others run without one.
+              You can start without a key. <Term name="VirusTotal">VirusTotal</Term>, <Term name="AbuseIPDB">AbuseIPDB</Term>, <Term name="OTX">OTX</Term>, and <Term name="Defender">Defender</Term> stay quiet until you add one. The result names anyone who stayed quiet.
             </p>
           </form>
 
@@ -415,7 +522,7 @@ export function Dashboard() {
               <nav className="sticky top-0 z-20 mt-4 -mx-3 flex gap-1 overflow-x-auto border-b border-line bg-bg px-3 py-2 sm:-mx-5 sm:px-5">
                 {NAV.map(([id, label]) => (
                   <a key={id} href={`#${id}`} className="inline-flex h-11 shrink-0 items-center rounded-md px-2 text-sm text-muted hover:text-fg">
-                    {label}
+                    <Term name={label} focusable={false}>{label}</Term>
                   </a>
                 ))}
               </nav>
@@ -432,6 +539,9 @@ export function Dashboard() {
                   verdict={dossier?.verdict}
                   score={dossier?.score}
                   phase={phase}
+                  sources={activeSources}
+                  note={dossier?.summary}
+                  onCopyNote={dossier?.summary ? () => void copyText("Ticket", dossier.summary) : undefined}
                 />
                 <SummaryPanel
                   phase={phase}
@@ -458,17 +568,11 @@ export function Dashboard() {
                         <button type="button" className="h-11 rounded-md border border-line px-3 text-sm text-muted" onClick={() => void run(dossier.ip)}>
                           Re-query
                         </button>
-                        <button type="button" className="h-11 rounded-md border border-line px-3 text-sm text-muted" onClick={clearResult}>
-                          Clear result
-                        </button>
                       </>
-                    ) : (
-                      <button type="button" className="h-11 rounded-md border border-line px-3 text-sm text-muted" onClick={clearResult}>
-                        Clear result
-                      </button>
-                    )
+                    ) : null
                   }
                 />
+                {settings.feedStatus ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <InfoTip
                     label="How to read feed status"
@@ -480,12 +584,15 @@ export function Dashboard() {
                     return (
                       <span key={feed.id} className="inline-flex h-8 items-center gap-1.5 rounded-md bg-surface px-2 font-mono text-xs text-muted">
                         <span className={`size-1.5 rounded-full ${state.dot}`} aria-hidden="true" />
-                        {feed.label}
-                        <span className="text-faint">{state.word}</span>
+                        <Term name={feed.label} focusable={false}>{feed.label}</Term>
+                        <Term name={statusTerm(source?.status, source?.cached, phase === "running")} focusable={false}>
+                          {state.word}
+                        </Term>
                       </span>
                     );
                   })}
                 </div>
+                ) : null}
                 {missingKeys.length ? (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2">
                     <p className="text-sm text-muted">No key for {missingKeys.map((feed) => feed.label).join(", ")}.</p>
@@ -498,7 +605,7 @@ export function Dashboard() {
                   <h2 className="text-sm font-semibold">Details</h2>
                   <InfoTip
                     label="What the closed sections mean"
-                    text="Not listed on one blocklist is not safe. Threat labels come from other services. Shodan is their old record, not a scan we ran. The city is who owns the network, not a person. A public list is not your case."
+                    text="Not being listed on one blocklist does not mean the address is safe. Threat labels come from other services. Shodan is their old record, not a scan we ran. The city is where the network is registered, not where a person is. A public list is not your case."
                   />
                 </div>
                 <ReputationPanel
@@ -534,7 +641,7 @@ export function Dashboard() {
         <aside className="min-w-0 lg:sticky lg:top-4 lg:col-start-1 lg:row-start-1 lg:self-start">
           <details className="group mb-4 rounded-lg border border-line bg-surface">
             <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-              <span className="flex-1">Our network{assets.length ? ` · ${assets.length}` : ""}</span>
+              <span className="flex-1"><Term name="Our network">Our network</Term>{assets.length ? ` · ${assets.length}` : ""}</span>
               <ChevronDown className="size-4 text-muted group-open:rotate-180" aria-hidden="true" />
             </summary>
             <div className="border-t border-line px-3 py-3">
@@ -575,7 +682,7 @@ export function Dashboard() {
             </div>
           </details>
           <div className="mb-2">
-            <h2 className="text-sm font-semibold">Workspace log</h2>
+            <h2 className="text-sm font-semibold"><Term name="Workspace log">Workspace log</Term></h2>
             <p className="text-xs text-faint">Shared on this workspace</p>
             {history.length > 0 && !confirmClear ? (
               <button type="button" onClick={() => setConfirmClear(true)} className="mt-1 h-11 px-2 text-sm text-muted">
@@ -608,24 +715,48 @@ export function Dashboard() {
               </div>
             </div>
           ) : null}
-          <div className="grid max-h-72 gap-1 overflow-y-auto">
+          {history.length > 0 ? (
+            <input
+              value={logQuery}
+              onChange={(event) => setLogQuery(event.target.value)}
+              placeholder="Find an address"
+              spellCheck={false}
+              className="mb-2 h-11 w-full rounded-md border border-line bg-surface px-3 font-mono text-sm outline-none placeholder:text-faint focus-visible:border-accent"
+            />
+          ) : null}
+          <div className="log-scroll grid max-h-[min(28rem,calc(100dvh-14rem))] gap-1">
             {history.length === 0 ? (
               <p className="text-sm text-muted">{historyNote ?? "Lookups on this workspace are listed here."}</p>
+            ) : visibleLog(history, logQuery).length === 0 ? (
+              <p className="text-sm text-muted">No address starts with that.</p>
             ) : (
-              latestByIp(history).map((row) => (
+              visibleLog(history, logQuery).map((row) => (
                 <div
                   key={row.id}
                   className={`flex min-h-11 min-w-0 items-stretch rounded-md border ${
                     dossier?.historyId === row.id ? "border-accent bg-raised" : "border-line bg-surface"
                   }`}
                 >
-                  <button type="button" onClick={() => void openCase(row.id)} className="min-w-0 flex-1 px-3 py-2 text-left">
+                  <button
+                    type="button"
+                    onClick={() => void toggleMark(row)}
+                    aria-pressed={row.marked}
+                    aria-label={row.marked ? `Unmark ${row.ip}` : `Mark ${row.ip} to come back to it`}
+                    className={`grid h-11 w-11 shrink-0 place-items-center ${row.marked ? "text-accent" : "text-faint"}`}
+                  >
+                    <Star className="size-4" fill={row.marked ? "currentColor" : "none"} aria-hidden="true" />
+                  </button>
+                  <button type="button" onClick={() => void openCase(row.id)} className="min-w-0 flex-1 py-2 pr-3 text-left">
                     <span className="flex items-center gap-2">
                       <span className={`size-2 shrink-0 rounded-full ${dot[row.verdict]}`} aria-hidden="true" />
                       <span className="truncate font-mono text-sm">{row.ip}</span>
                     </span>
                     <span className="mt-0.5 block text-xs text-faint">
-                      {row.verdict} · {row.score} · {safeAgo(row.createdAt)}
+                      <Term name={row.verdict.toUpperCase()} focusable={false}>{row.verdict}</Term>
+                      {" · "}
+                      {row.score}
+                      {" · "}
+                      {safeAgo(row.createdAt)}
                     </span>
                   </button>
                   {pendingDelete === row.id ? (
@@ -659,6 +790,10 @@ export function Dashboard() {
         </aside>
       </div>
       <KeysDialog open={keysOpen} onOpenChange={setKeysOpen} envFlags={envFlags} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <GlossaryDialog open={glossaryOpen} onOpenChange={setGlossaryOpen} />
+      <StudyDialog open={studyOpen} onOpenChange={setStudyOpen} />
     </div>
   );
 }
@@ -671,6 +806,12 @@ function feedState(source: SourceMeta | undefined, running: boolean): { dot: str
   if (source.status === "unsupported") return { dot: "bg-faint", word };
   if (source.status === "ok" || source.status === "empty") return { dot: "bg-ok", word };
   return { dot: "bg-warn", word };
+}
+
+function visibleLog(rows: HistoryRow[], query: string): HistoryRow[] {
+  const needle = query.trim().toLowerCase();
+  const latest = latestByIp(rows).filter((row) => !needle || row.ip.toLowerCase().startsWith(needle));
+  return [...latest.filter((row) => row.marked), ...latest.filter((row) => !row.marked)];
 }
 
 function latestByIp(rows: HistoryRow[]): HistoryRow[] {

@@ -189,8 +189,8 @@ async function persist(dossier: Dossier): Promise<{ id?: number; logStatus: Doss
     const sql = await getSql();
     const stored = { ...dossier, logStatus: "saved" as const };
     const rows = await sql.query<{ id: number }>(
-      `insert into lookups (ip, verdict, score, summary, sources, result)
-       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+      `insert into lookups (ip, verdict, score, summary, sources, result, marked)
+       values ($1, $2, $3, $4, $5::jsonb, $6::jsonb, coalesce((select marked from lookups where ip = $1 order by id desc limit 1), false))
        returning id`,
       [
         dossier.ip,
@@ -449,6 +449,15 @@ export async function deleteHistory(id: number): Promise<boolean> {
   return rows.length > 0;
 }
 
+export async function setHistoryMark(id: number, marked: boolean): Promise<string | null> {
+  const sql = await getSql();
+  const rows = await sql.query<{ ip: string }>(
+    `update lookups set marked = $1 where ip = (select ip from lookups where id = $2) returning ip`,
+    [marked, id],
+  );
+  return rows[0]?.ip ?? null;
+}
+
 export async function listHistory() {
   const sql = await getSql();
   const rows = await sql.query<{
@@ -458,8 +467,9 @@ export async function listHistory() {
     score: number;
     summary: string;
     created_at: unknown;
+    marked: boolean;
   }>(
-    `select id, ip, verdict, score, summary, created_at
+    `select id, ip, verdict, score, summary, created_at, marked
      from lookups
      order by id desc
      limit 30`,
@@ -471,6 +481,7 @@ export async function listHistory() {
     score: Number(row.score),
     summary: row.summary,
     createdAt: toIso(row.created_at),
+    marked: Boolean(row.marked),
   }));
 }
 

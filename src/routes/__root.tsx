@@ -26,6 +26,12 @@ export const Route = createRootRoute({
   component: () => (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(JSON.parse(localStorage.getItem('ip-threat-checker.settings')||'{}').theme==='light')document.documentElement.dataset.theme='light'}catch(e){}",
+          }}
+        />
         <HeadContent />
       </head>
       <body>
