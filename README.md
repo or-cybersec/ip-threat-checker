@@ -62,13 +62,15 @@ Install Docker Desktop and wait until it says it is running. The whale icon in t
 
 Open PowerShell in the project folder. In File Explorer, click the address bar, type `powershell`, and press Enter.
 
+If the Node.js page is already running, press `Ctrl+C` in that window first. Both ways use port 8080. They cannot run at the same time.
+
 Start the page:
 
 ```powershell
-docker compose up
+docker compose up --build
 ```
 
-The first time, a long list will scroll by while Docker downloads and builds. That is normal, not an error. It can take several minutes. Wait until a line like this appears:
+The first time, and again after you download a newer copy, a long list will scroll by while Docker downloads and builds. That is normal, not an error. It can take several minutes. Wait until a line like this appears:
 
 ```text
 Local: http://localhost:8080
