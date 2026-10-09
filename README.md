@@ -30,10 +30,10 @@ The number must start with `v22`. If PowerShell says `node` is not recognized, i
 
 Open PowerShell in the project folder. In File Explorer, click the address bar, type `powershell`, and press Enter. The blue window should show the path of that folder.
 
-Install the pieces the page needs:
+Install the pieces the page needs. On Windows, `npm.cmd` is the command that PowerShell will run. `npm` alone can be blocked.
 
 ```powershell
-npm install
+npm.cmd install
 ```
 
 A long list of names will scroll by. That is normal, not an error. Wait until you can type again. You do this once, and again only after you download a newer copy.
@@ -41,7 +41,7 @@ A long list of names will scroll by. That is normal, not an error. Wait until yo
 Start the page:
 
 ```powershell
-npm run dev
+npm.cmd run dev
 ```
 
 Wait until a line like this appears:
