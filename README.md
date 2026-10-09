@@ -47,10 +47,10 @@ npm.cmd run dev
 Wait until a line like this appears:
 
 ```text
-Local: http://localhost:8080
+Local: http://127.0.0.1:8080/
 ```
 
-Then open [http://localhost:8080](http://localhost:8080) in a browser. If that line is not there yet, the browser has nothing to open.
+Then open [http://127.0.0.1:8080/](http://127.0.0.1:8080/) in a browser. If that line is not there yet, the browser has nothing to open. This address is only this computer. The terminal does not offer your home network.
 
 Leave the PowerShell window open while you use the page. Press `Ctrl+C` in that window to stop it. Closing the window stops it too.
 
@@ -74,7 +74,7 @@ The first time, a long list will scroll by while Docker downloads and builds. Th
 Local: http://localhost:8080
 ```
 
-Then open [http://localhost:8080](http://localhost:8080) in a browser.
+Then open [http://localhost:8080](http://localhost:8080) in a browser. Docker may also print Network lines. Those belong to Docker, not to your home network. Ignore them.
 
 Leave the PowerShell window open while you use the page. Press `Ctrl+C` in that window to stop it. If the page is still open afterward, run `docker compose down`.
 
