@@ -14,6 +14,7 @@ services:
       MDTI_CLIENT_ID: ${MDTI_CLIENT_ID:-}
       MDTI_CLIENT_SECRET: ${MDTI_CLIENT_SECRET:-}
     restart: unless-stopped
+    command: ["node", "scripts/with-app-env.mjs", "vite", "dev", "--host", "0.0.0.0", "--port", "8080"]
   nginx:
     profiles: ["proxy"]
     image: nginx:1.27-alpine
